@@ -15,10 +15,10 @@ else:
 setup(
     name='noise',
     version='1.2.3',
-    description='Perlin noise for Python',
-    long_description='TODO Based on the "noise" package by Casey Duncan',
-    author='Casey Duncan',
-    author_email='casey.duncan@gmail.com',
+    description='Perlin noise stimuli for Python',
+    long_description='Based on the "noise" package by Casey Duncan',
+    author='Max Shinn',
+    author_email='m.shinn@ucl.ac.uk',
     url='https://github.com/caseman/noise',
     classifiers = [
         'Development Status :: 4 - Beta',
@@ -27,9 +27,9 @@ setup(
     ],
 
     package_dir={'noise': ''},
-    packages=['pinkstim'],
+    packages=['perlstim'],
     ext_modules=[
-        Extension('pinkstim._perlin', ['pinkstim/_perlin.c'],
+        Extension('perlstim._perlin', ['perlstim/_perlin.c'],
             extra_compile_args=compile_args,
                   include_dirs=[np.get_include()],
         )
