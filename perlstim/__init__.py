@@ -6,6 +6,7 @@ from . import _perlin
 import numpy as np
 import warnings
 import scipy.ndimage
+from pathlib import Path
 
 CACHEDIR = "/home/max/Tmp/pinkcache/"
 TMPDIR = "/media/scratch/"
@@ -86,10 +87,10 @@ class Perl:
 
         h = hashlib.md5(str((self.size, self.fps, self.seed, self.xyscale, self.tscale, self.levels, self.demean)).encode()).hexdigest()
         if batch is None:
-            return CACHEDIR + "/" + f"perlcache_{h}.npy"
+            return str(Path(CACHEDIR).joinpath(f"perlcache_{h}.npy"))
         if batch == "stats":
-            return CACHEDIR + "/" + f"perlcache_{h}_stats.npz"
-        return CACHEDIR + "/" + f"perlcache_{h}_{batch}.npy"
+            return str(Path(CACHEDIR).joinpath(f"perlcache_{h}_stats.npz"))
+        return str(Path(CACHEDIR).joinpath(f"perlcache_{h}_{batch}.npy"))
     @classmethod
     def discretize(cls, im):
         """Convert movie to an unsigned 8-bit integer
@@ -147,9 +148,23 @@ class Perl:
             im[:s,-s:,::2] = 0
             im[:s,-s:,1::2] = 1
             return im
+        if filt == "photodiode_anywhere":
+            im = im.copy()
+            x = args[0]
+            y = args[1]
+            s = args[2]
+            im[y:(y+s),x:(x+s),::2] = 0
+            im[y:(y+s),x:(x+s),1::2] = 1
+            return im
         if filt == "photodiode_b2":
             im = im.copy()
             s = 125
+            im[:s,-s:,::2] = 0
+            im[:s,-s:,1::2] = 1
+            return im
+        if filt == "photodiode_fusi":
+            im = im.copy()
+            s = 75
             im[:s,-s:,::2] = 0
             im[:s,-s:,1::2] = 1
             return im
@@ -265,6 +280,18 @@ class Perl:
         self.min_ = min_
         self.max_ = max_
         self.nframes = nframes
+    def save_grey_pad(self, fn, dur, bitrate=20):
+        """Create a grey screen video which can be used to pad"""
+        one_frame = np.load(self.cache_filename(0), mmap_mode='r')[:,:,0].astype('uint8') * 0 + 127
+        imageio.imsave(Path(TMPDIR).joinpath("_grey.tif"), one_frame, format="pillow", compression="tiff_adobe_deflate")
+        n_frames = int(dur * self.fps)
+        for i in range(0, n_frames):
+            os.link(Path(TMPDIR).joinpath("_grey.tif"), PATH(TMPDIR).joinpath(f"_frame{i:05}.tif"))
+        if fn[-4:] != ".mp4":
+            fn += ".mp4"
+        call(["ffmpeg", "-r", str(self.fps), "-i", str(Path(TMPDIR).joinpath("_frame%5d.tif")), "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
+        call([f"rm "+str(Path(TMPDIR).joinpath("_frame*.tif"))], shell=True)
+        call([f"rm "+str(Path(TMPDIR).joinpath("_grey.tif"))], shell=True)
     def save_video(self, fn, loop=1, filters=[], bitrate=20):
         """Save the filtered stimulus.
 
@@ -303,15 +330,15 @@ class Perl:
             data = self.discretize(data)
             assert data.dtype == 'uint8'
             for j in range(0, data.shape[2]):
-                imageio.imsave(f"{TMPDIR}/_frame{filtind(i):05}.tif", data[:,:,j], format="pillow", compression="tiff_adobe_deflate")
+                imageio.imsave(Path(TMPDIR).joinpath(f"_frame{filtind(i):05}.tif"), data[:,:,j], format="pillow", compression="tiff_adobe_deflate")
                 i += 1
             k += 1
             del data
         n_frames = i
         for j in range(1, loop):
             for i in range(0, n_frames):
-                os.link(f"{TMPDIR}/_frame{i:05}.tif", f"{TMPDIR}/_frame{(i+j*n_frames):05}.tif")
+                os.link(Path(TMPDIR).joinpath(f"_frame{i:05}.tif"), Path(TMPDIR).joinpath(f"_frame{(i+j*n_frames):05}.tif"))
         if fn[-4:] != ".mp4":
             fn += ".mp4"
-        call(["ffmpeg", "-r", str(self.fps), "-i", TMPDIR+"/_frame%5d.tif", "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
-        call([f"rm {TMPDIR}/_frame*.tif"], shell=True)
+        call(["ffmpeg", "-r", str(self.fps), "-i", str(Path(TMPDIR).joinpath("_frame%5d.tif")), "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
+        call([f"rm "+str(Path(TMPDIR).joinpath("_frame*.tif"))], shell=True)
