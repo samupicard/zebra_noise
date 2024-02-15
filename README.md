@@ -13,13 +13,16 @@ This will compile the sources and install.
 # Usage
 
 To generate a Perlin noise-based video, follow two steps with the package.  First, generate the Perlin noise.  This is the most time consuming step, and will also use a lot of temporary disk space.  This is accomplished with:
-perlnoise.
 
-noise = Perlstim.Perl(xsize=4000, ysize=1000, tdur=60*2, xyscale=.5, tscale=.1, seed=0)
+```python
+noise = perlstim.Perl(xsize=4000, ysize=1000, tdur=60*2, xyscale=.5, tscale=.1, seed=0)
+```
 
 Second, apply "filters" to the Perlin noise and save the resulting video.  Filters include thresholds, sync squares in the corner, etc.  If using a filter with no arguments, just pass a string naming the filter.  If using a filter with arguments, pass a tuple where the first element is the name of the filter as a string, and the remaining elements are the arguments.  For example,
 
+```python
 noise.save_video("noise.mp4", filters=["reverse", ("comb", .1)])
+```
 
 The above example applies the "reverse" filter (with no arguments) and the "comb" filter with the argument 0.1.
 
