@@ -13,20 +13,19 @@ else:
     compile_args = []
 
 setup(
-    name='noise',
-    version='1.2.3',
+    name='perlstim',
+    version='0.1',
     description='Perlin noise stimuli for Python',
     long_description='Based on the "noise" package by Casey Duncan',
     author='Max Shinn',
     author_email='m.shinn@ucl.ac.uk',
-    url='https://github.com/caseman/noise',
+    url='https://github.com/mwshinn/perlin_stimuli',
     classifiers = [
         'Development Status :: 4 - Beta',
         'Programming Language :: C',
         'Programming Language :: Python :: 3',
     ],
 
-    package_dir={'noise': ''},
     packages=['perlstim'],
     ext_modules=[
         Extension('perlstim._perlin', ['perlstim/_perlin.c'],

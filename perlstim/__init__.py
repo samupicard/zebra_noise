@@ -7,19 +7,16 @@ import numpy as np
 import warnings
 import scipy.ndimage
 from pathlib import Path
-
-CACHEDIR = "/home/max/Tmp/pinkcache/"
-TMPDIR = "/media/scratch/"
+import tempfile
 
 class Perl:
     """Class to generate a Perlin noise stimulus.
 
-    To generate noise, instantiate this method.  You might have to change
-    CACHEDIR or TMPDIR in the source code first.  This will automatically
+    To generate noise, instantiate this method.  This will automatically
     generate Perlin noise which you can save, filter, etc.
     """
     XYSCALEBASE = 100
-    def __init__(self, xsize, ysize, tdur, levels=10, xyscale=.5, tscale=1, fps=30, seed=0, demean="both"):
+    def __init__(self, xsize, ysize, tdur, levels=10, xyscale=.5, tscale=1, fps=30, seed=0, demean="both", cachedir="perlcache"):
         """Initialise Perlin noise stimulus.
 
         Parameters
@@ -40,6 +37,8 @@ class Perl:
             Random seed for the noise
         demean : {'both', 'time', 'space', 'none'}, default: 'both'
             Dimensions across which to fix the mean to zero
+        cachedir : str
+            A file path to the cache directory.  Will contain large files.
 
         Notes
         -----
@@ -60,6 +59,9 @@ class Perl:
         assert self.size[0] > self.size[1], "Wrong orientation"
         self.fps = fps
         self.seed = seed
+        self.cachedir = Path(cachedir)
+        self.cachedir.mkdir(exist_ok=True)
+        self.tmpdir = Path(tempfile.mkdtemp())
         self.xyscale = xyscale
         self.tscale = tscale
         self.levels = levels
@@ -84,13 +86,12 @@ class Perl:
         str
             The filename of the cache
         """
-
         h = hashlib.md5(str((self.size, self.fps, self.seed, self.xyscale, self.tscale, self.levels, self.demean)).encode()).hexdigest()
         if batch is None:
-            return str(Path(CACHEDIR).joinpath(f"perlcache_{h}.npy"))
+            return str(self.cachedir.joinpath(f"perlcache_{h}.npy"))
         if batch == "stats":
-            return str(Path(CACHEDIR).joinpath(f"perlcache_{h}_stats.npz"))
-        return str(Path(CACHEDIR).joinpath(f"perlcache_{h}_{batch}.npy"))
+            return str(self.cachedir.joinpath(f"perlcache_{h}_stats.npz"))
+        return str(self.cachedir.joinpath(f"perlcache_{h}_{batch}.npy"))
     @classmethod
     def discretize(cls, im):
         """Convert movie to an unsigned 8-bit integer
@@ -283,15 +284,15 @@ class Perl:
     def save_grey_pad(self, fn, dur, bitrate=20):
         """Create a grey screen video which can be used to pad"""
         one_frame = np.load(self.cache_filename(0), mmap_mode='r')[:,:,0].astype('uint8') * 0 + 127
-        imageio.imsave(Path(TMPDIR).joinpath("_grey.tif"), one_frame, format="pillow", compression="tiff_adobe_deflate")
+        imageio.imsave(self.tmpdir.joinpath("_grey.tif"), one_frame, format="pillow", compression="tiff_adobe_deflate")
         n_frames = int(dur * self.fps)
         for i in range(0, n_frames):
-            os.link(Path(TMPDIR).joinpath("_grey.tif"), PATH(TMPDIR).joinpath(f"_frame{i:05}.tif"))
+            os.link(self.tmpdir.joinpath("_grey.tif"), self.tmpdir.joinpath(f"_frame{i:05}.tif"))
         if fn[-4:] != ".mp4":
             fn += ".mp4"
-        call(["ffmpeg", "-r", str(self.fps), "-i", str(Path(TMPDIR).joinpath("_frame%5d.tif")), "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
-        call([f"rm "+str(Path(TMPDIR).joinpath("_frame*.tif"))], shell=True)
-        call([f"rm "+str(Path(TMPDIR).joinpath("_grey.tif"))], shell=True)
+        call(["ffmpeg", "-r", str(self.fps), "-i", str(self.tmpdir.joinpath("_frame%5d.tif")), "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
+        call([f"rm "+str(self.tmpdir.joinpath("_frame*.tif"))], shell=True)
+        call([f"rm "+str(self.tmpdir.joinpath("_grey.tif"))], shell=True)
     def save_video(self, fn, loop=1, filters=[], bitrate=20):
         """Save the filtered stimulus.
 
@@ -310,6 +311,8 @@ class Perl:
             videos and pure pink noise, but a higher value may be necessary if
             using the "wood" filter.
         """
+        if Path(fn).exists():
+            raise IOError("Output video file already exists!")
         i = 0
         k = 0
         filtind = self.filter_index_function(filters)
@@ -330,15 +333,15 @@ class Perl:
             data = self.discretize(data)
             assert data.dtype == 'uint8'
             for j in range(0, data.shape[2]):
-                imageio.imsave(Path(TMPDIR).joinpath(f"_frame{filtind(i):05}.tif"), data[:,:,j], format="pillow", compression="tiff_adobe_deflate")
+                imageio.imsave(self.tmpdir.joinpath(f"_frame{filtind(i):05}.tif"), data[:,:,j], format="pillow", compression="tiff_adobe_deflate")
                 i += 1
             k += 1
             del data
         n_frames = i
         for j in range(1, loop):
             for i in range(0, n_frames):
-                os.link(Path(TMPDIR).joinpath(f"_frame{i:05}.tif"), Path(TMPDIR).joinpath(f"_frame{(i+j*n_frames):05}.tif"))
+                os.link(self.tmpdir.joinpath(f"_frame{i:05}.tif"), self.tmpdir.joinpath(f"_frame{(i+j*n_frames):05}.tif"))
         if fn[-4:] != ".mp4":
             fn += ".mp4"
-        call(["ffmpeg", "-r", str(self.fps), "-i", str(Path(TMPDIR).joinpath("_frame%5d.tif")), "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
-        call([f"rm "+str(Path(TMPDIR).joinpath("_frame*.tif"))], shell=True)
+        call(["ffmpeg", "-r", str(self.fps), "-i", str(self.tmpdir.joinpath("_frame%5d.tif")), "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
+        call([f"rm "+str(self.tmpdir.joinpath("_frame*.tif"))], shell=True)
