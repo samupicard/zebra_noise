@@ -16,7 +16,7 @@ class Perl:
     generate Perlin noise which you can save, filter, etc.
     """
     XYSCALEBASE = 100
-    def __init__(self, xsize, ysize, tdur, levels=10, xyscale=.5, tscale=1, fps=30, seed=0, demean="both", cachedir="perlcache"):
+    def __init__(self, xsize, ysize, tdur, levels=10, xyscale=.5, tscale=1, fps=30, xscale=1.0, yscale=1.0, seed=0, demean="both", cachedir="perlcache", delay_batch=False):
         """Initialise Perlin noise stimulus.
 
         Parameters
@@ -28,7 +28,11 @@ class Perl:
         levels : int > 0, default: 10
             The number of spatial scales to include.  The default is usually okay.
         xyscale : float ∈ [0,1], default: 0.5
-            The spatial scaling of the noise, smaller is broader/wider
+            The spatial grain scale of the noise, larger is more granular
+        xscale : float, default: 1.0
+            The spatial scale in x, larger is a bigger scale
+        yscale : float, default: 1.0
+            The spatial scale in y, larger is a bigger scale
         tscale : int > 0, default: 1
             The temporal scaling of the noise, larger is slower.
         fps : int > 0, default: 30
@@ -39,6 +43,8 @@ class Perl:
             Dimensions across which to fix the mean to zero
         cachedir : str
             A file path to the cache directory.  Will contain large files.
+        delay_batch : bool
+            If true, do not immediately generate perlin noise.  Manually call self.generate_batch() instead.
 
         Notes
         -----
@@ -56,7 +62,7 @@ class Perl:
             warnings.warn(f"Adding {textra} extra timepoints to make tscale a multiple of tdur")
         tsize += textra
         self.size = (xsize, ysize, tsize)
-        assert self.size[0] > self.size[1], "Wrong orientation"
+        assert self.size[0] >= self.size[1], "Wrong orientation"
         self.fps = fps
         self.seed = seed
         self.cachedir = Path(cachedir)
@@ -66,11 +72,14 @@ class Perl:
         self.tscale = tscale
         self.levels = levels
         self.demean = demean
+        self.xscale = xscale
+        self.yscale = yscale
         self.batch_size = int(400000000/(self.size[0]*self.size[1]))
         #self.batch_size = int(400000/(self.size[0]*self.size[1]))
         if self.batch_size % 2 == 1: # Make sure it is an even number
             self.batch_size += 1
-        self.generate_batch()
+        if not delay_batch:
+            self.generate_batch()
     def cache_filename(self, batch=None):
         """Return the filename for the cache.
 
@@ -99,12 +108,12 @@ class Perl:
         Parameters
         ----------
         im : 3D float ndarray, values ∈ [0,1]
-            Pink noise movie
+            Noise movie
 
         Returns
         -------
         3D int ndarray, values ∈ [0,255]
-            Pink noise movie
+            Noise movie
         """
         im *= 255
         ret = im.astype(np.uint8)
@@ -116,7 +125,7 @@ class Perl:
         Parameters
         ----------
         im : 3D float ndarray, values ∈ [0,1]
-            Pink noise movie
+            Noise movie
         filt : str
             The name of the filter
         *args : tuple
@@ -125,7 +134,7 @@ class Perl:
         Returns
         -------
         im : 3D float ndarray, values ∈ [0,1]
-            Filtered pink noise movie
+            Filtered noise movie
         """
         if filt == "threshold":
             return (im>args[0]).astype(np.float32)
@@ -198,7 +207,7 @@ class Perl:
         batches.  However, for large videos, batches are necessary due to
         limited amounts of RAM.  Thus, this function should return another
         function which takes an index as input and outputs a new index,
-        remapping the initial pink noise frame to the output video frame.  This
+        remapping the initial noise frame to the output video frame.  This
         was primarily designed to support reversing the video, but it might be
         useful for other things too.
 
@@ -207,8 +216,49 @@ class Perl:
             return lambda x : self.nframes - x - 1
         return lambda x : x
 
+    def generate_frame(self, t=0, filters=[]):
+        """Generate and return a single image of noise.
+
+
+        Parameters
+        ----------
+        t : float
+            the timepoint at which to generate the image
+        filters : list of str and/or (str, ...) tuples
+            A list of filters to apply to the stimulus.  If a filter requires
+            parameters, pass a tuple, where the first element is the name of
+            the filter and the subsequent elements are the parameters.
+
+        Returns
+        -------
+        2-dimensional ndarray
+            An image of the noise
+        """
+        tunits = int(self.size[2]/self.tscale)
+        arr = _perlin.make_perlin(np.arange(0, self.size[0], dtype="float32")/self.size[1]/self.xscale, # Yes, divide by y size
+                                  np.arange(0, self.size[1], dtype="float32")/self.size[1]/self.yscale,
+                                  np.asarray([t], dtype="float32"),
+                                  octaves=self.levels,
+                                  persistence=self.xyscale,
+                                  repeatx=self.ratio,
+                                  repeaty=self.XYSCALEBASE,
+                                  repeatz=tunits,
+                                  base=self.seed)
+        arr = arr.swapaxes(0,1)
+        if self.demean in ["both", "time"]:
+            arr -= np.mean(arr, axis=(0,1), keepdims=True)
+        for f in filters:
+            if isinstance(f, str):
+                n = f
+                args = []
+            else:
+                n = f[0]
+                args = f[1:]
+            arr = self.filter(arr, n, *args)
+        return arr.squeeze()
+
     def generate_batch(self):
-        """Create the pink noise stimuli
+        """Create the stimulus
 
         Runs the _perlin C module and saves the output in batches.
 
@@ -239,8 +289,8 @@ class Perl:
         for k in range(0, int(np.ceil(len(ts_all)/self.batch_size))):
             ts = ts_all[(k*self.batch_size):((k+1)*self.batch_size)]
             print("batch", k, len(ts_all), self.batch_size, len(ts))
-            arr = _perlin.make_perlin(np.arange(0, self.size[0], dtype="float32")/self.size[1], # Yes, divide by y size
-                                              np.arange(0, self.size[1], dtype="float32")/self.size[1],
+            arr = _perlin.make_perlin(np.arange(0, self.size[0], dtype="float32")/self.size[1]/self.xscale, # Yes, divide by y size
+                                              np.arange(0, self.size[1], dtype="float32")/self.size[1]/self.yscale,
                                               ts,
                                               octaves=self.levels,
                                               persistence=self.xyscale,
@@ -308,7 +358,7 @@ class Perl:
             the filter and the subsequent elements are the parameters.
         bitrate : int > 0
             The bitrate in megabits per second.  The default is good for binary
-            videos and pure pink noise, but a higher value may be necessary if
+            videos and pure noise, but a higher value may be necessary if
             using the "wood" filter.
         """
         if Path(fn).exists():

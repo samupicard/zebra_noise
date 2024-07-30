@@ -1,5 +1,7 @@
 This library will efficiently generate visual stimulus videos using Perlin noise.  The core algorithm is in optimized C.
 
+Much of the C code is based on [Casey Duncan's "noise" package for Python](https://github.com/caseman/noise), under the MIT license.
+
 # Installation
 
 Make sure you have a C compiler installed.  The easiest way to do this is by installing Cython.
@@ -19,6 +21,8 @@ To generate a Perlin noise-based video, follow two steps with the package.  Firs
 ```python
 noise = perlstim.Perl(xsize=400, ysize=100, tdur=60*2, xyscale=.5, tscale=.01, seed=0)
 ```
+
+See the function documentation for perlstim.Perl for more information about modifying the properties of the noise.
 
 Second, apply "filters" to the Perlin noise and save the resulting video.  Filters include thresholds, sync squares in the corner, etc.  If using a filter with no arguments, just pass a string naming the filter.  If using a filter with arguments, pass a tuple where the first element is the name of the filter as a string, and the remaining elements are the arguments.  For example,
 
@@ -41,7 +45,7 @@ The following filters are currently defined:
 - "blur" (1 argument): Gaussian blur with the given spatial standard deviation
 - "photodiode" (1 argument): Draw a sync square in the corner, with a size given by the argument.
 - "photodiode_anywhere" (3 arguments): Draw a sync square at the coordinates given by the first two arguments (x and y), and of size given by argument 3.
-- [any function] (0 arguments): If you pass a function, the function will be applied to each chunk of the pink noise video.  Chunks consist of the entire x and y but a subset of z, guaranteed to be an even number.
+- [any function] (0 arguments): If you pass a function, the function will be applied to each chunk of the video.  Chunks consist of the entire x and y but a subset of z, guaranteed to be an even number.
 
 # Example
 
