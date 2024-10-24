@@ -1,22 +1,30 @@
-from subprocess import call
-import imageio
 import hashlib
 import os
-from . import _perlin
-import numpy as np
 import warnings
-import scipy.ndimage
-from pathlib import Path
 import tempfile
+from subprocess import call
+from pathlib import Path
+import numpy as np
+import imageio
+from imageio_ffmpeg import get_ffmpeg_exe
 
-class Perl:
+from . import _perlin
+from .util import generate_frames, filter_frames, filter_frames_index_function, XYSCALEBASE
+
+
+class PerlinStimulus:
     """Class to generate a Perlin noise stimulus.
+
+    This is the "heavy duty" way of generating stimuli, mostly for experimenting
+    with new Perlin-based stimuli.  If you would just like to generate zebra
+    noise, use the "zebra_noise" function instead, which is faster and more
+    memory efficient.
 
     To generate noise, instantiate this method.  This will automatically
     generate Perlin noise which you can save, filter, etc.
+
     """
-    XYSCALEBASE = 100
-    def __init__(self, xsize, ysize, tdur, levels=10, xyscale=.5, tscale=1, fps=30, xscale=1.0, yscale=1.0, seed=0, demean="both", cachedir="perlcache", delay_batch=False):
+    def __init__(self, xsize, ysize, tdur, levels=10, xyscale=.2, tscale=50, fps=30, xscale=1.0, yscale=1.0, seed=0, demean="both", cachedir="perlcache", delay_batch=False):
         """Initialise Perlin noise stimulus.
 
         Parameters
@@ -54,8 +62,8 @@ class Perl:
         """
         assert demean in ["both", "time", "space", "none"]
         tsize = int(tdur*fps)
-        self.ratio = xsize/ysize*self.XYSCALEBASE
-        assert self.ratio == int(self.ratio), "Ratio between x and y times 100 must be an integer"
+        self.ratio = xsize/ysize*XYSCALEBASE
+        assert self.ratio == int(self.ratio), f"Ratio between x and y times {XYSCALEBASE} must be an integer"
         self.ratio = int(self.ratio)
         textra = (tscale - (tsize % tscale)) % tscale
         if textra > 0:
@@ -118,104 +126,6 @@ class Perl:
         im *= 255
         ret = im.astype(np.uint8)
         return ret
-    @classmethod
-    def filter(cls, im, filt, *args):
-        """Apply a filter to a batch
-
-        Parameters
-        ----------
-        im : 3D float ndarray, values ∈ [0,1]
-            Noise movie
-        filt : str
-            The name of the filter
-        *args : tuple
-            Extra arguments are passed to the filter
-
-        Returns
-        -------
-        im : 3D float ndarray, values ∈ [0,1]
-            Filtered noise movie
-        """
-        if filt == "threshold":
-            return (im>args[0]).astype(np.float32)
-        if filt == "softthresh":
-            return 1/(1+np.exp(-args[0]*(im-.5)))
-        if filt == "comb":
-            return (im//args[0] % 2 == 1).astype(np.float32)
-        if filt == "invert":
-            return 1-im
-        if filt == "reverse":
-            return im # We need to use filter_index_function for this
-        if filt == "blur":
-            return np.asarray([scipy.ndimage.filters.gaussian_filter(im.astype(np.float32)[:,:,i], args[0], mode='wrap') for i in range(0, im.shape[2])]).transpose([1,2,0])
-        if filt == "wood":
-            return (im % args[0]) / args[0]
-        if filt == "center":
-            return 1-(np.abs(im-.5)*2)
-        if filt == "photodiode":
-            im = im.copy()
-            s = args[0]
-            im[:s,-s:,::2] = 0
-            im[:s,-s:,1::2] = 1
-            return im
-        if filt == "photodiode_anywhere":
-            im = im.copy()
-            x = args[0]
-            y = args[1]
-            s = args[2]
-            im[y:(y+s),x:(x+s),::2] = 0
-            im[y:(y+s),x:(x+s),1::2] = 1
-            return im
-        if filt == "photodiode_b2":
-            im = im.copy()
-            s = 125
-            im[:s,-s:,::2] = 0
-            im[:s,-s:,1::2] = 1
-            return im
-        if filt == "photodiode_fusi":
-            im = im.copy()
-            s = 75
-            im[:s,-s:,::2] = 0
-            im[:s,-s:,1::2] = 1
-            return im
-        if filt == "photodiode_bscope":
-            im = im.copy()
-            s = 100
-            im[-s:,:s,::2] = 0
-            im[-s:,:s,1::2] = 1
-            return im
-        if callable(filt):
-            return filt(im)
-        raise ValueError("Invalid filter specified")
-    def filter_index_function(self, filters):
-        """Reordering frames in the video based on the filter.
-
-
-        Parameters
-        ----------
-        filters : list of strings or tuples
-            the list of filters passed to save_video
-
-        Returns
-        -------
-        function mapping int -> int
-            Reindexing function
-
-        Notes
-        -----
-        Some filters may need to operate on the global video instead of in
-        batches.  However, for large videos, batches are necessary due to
-        limited amounts of RAM.  Thus, this function should return another
-        function which takes an index as input and outputs a new index,
-        remapping the initial noise frame to the output video frame.  This
-        was primarily designed to support reversing the video, but it might be
-        useful for other things too.
-
-        """
-        if "reverse" in filters:
-            return lambda x : self.nframes - x - 1
-        return lambda x : x
-
     def generate_frame(self, t=0, filters=[]):
         """Generate and return a single image of noise.
 
@@ -223,7 +133,7 @@ class Perl:
         Parameters
         ----------
         t : float
-            the timepoint at which to generate the image
+            the frame at which to generate the image
         filters : list of str and/or (str, ...) tuples
             A list of filters to apply to the stimulus.  If a filter requires
             parameters, pass a tuple, where the first element is the name of
@@ -234,17 +144,9 @@ class Perl:
         2-dimensional ndarray
             An image of the noise
         """
-        tunits = int(self.size[2]/self.tscale)
-        arr = _perlin.make_perlin(np.arange(0, self.size[0], dtype="float32")/self.size[1]/self.xscale, # Yes, divide by y size
-                                  np.arange(0, self.size[1], dtype="float32")/self.size[1]/self.yscale,
-                                  np.asarray([t], dtype="float32"),
-                                  octaves=self.levels,
-                                  persistence=self.xyscale,
-                                  repeatx=self.ratio,
-                                  repeaty=self.XYSCALEBASE,
-                                  repeatz=tunits,
-                                  base=self.seed)
-        arr = arr.swapaxes(0,1)
+        arr = generate_frames(self.size[0], self.size[1], self.size[2], timepoints=[t], levels=self.levels,
+                              xyscale=self.xyscale, tscale=self.tscale, xscale=self.xscale,
+                              yscale=self.yscale, seed=self.seed)
         if self.demean in ["both", "time"]:
             arr -= np.mean(arr, axis=(0,1), keepdims=True)
         for f in filters:
@@ -254,7 +156,7 @@ class Perl:
             else:
                 n = f[0]
                 args = f[1:]
-            arr = self.filter(arr, n, *args)
+            arr = filter_frames(arr, n, *args)
         return arr.squeeze()
 
     def generate_batch(self):
@@ -274,10 +176,6 @@ class Perl:
             self.max_ = stats['max_']
             self.nframes = stats['nframes']
             return
-        # Use the temporal scale and number of timepoints to compute how many
-        # units to make the stimulus across the temporal dimension
-        tunits = int(self.size[2]/self.tscale)
-        ts_all = np.arange(0, self.size[2], dtype="float32")/self.tscale
         # Generate the stimuli and save the means and mins/maxes.  If we are
         # demeaning across space, we won't end up using the mins or maxes saved
         # here.
@@ -286,19 +184,12 @@ class Perl:
         weights = []
         mins = []
         maxes = []
-        for k in range(0, int(np.ceil(len(ts_all)/self.batch_size))):
-            ts = ts_all[(k*self.batch_size):((k+1)*self.batch_size)]
-            print("batch", k, len(ts_all), self.batch_size, len(ts))
-            arr = _perlin.make_perlin(np.arange(0, self.size[0], dtype="float32")/self.size[1]/self.xscale, # Yes, divide by y size
-                                              np.arange(0, self.size[1], dtype="float32")/self.size[1]/self.yscale,
-                                              ts,
-                                              octaves=self.levels,
-                                              persistence=self.xyscale,
-                                              repeatx=self.ratio,
-                                              repeaty=self.XYSCALEBASE,
-                                              repeatz=tunits,
-                                              base=self.seed)
-            arr = arr.swapaxes(0,1)
+        for k in range(0, int(np.ceil(self.size[2]/self.batch_size))):
+            print(f"Generating batch {k}")
+            arr = generate_frames(self.size[0], self.size[1], tsize=self.size[2],
+                                  timepoints=list(range(k*self.batch_size,min(self.size[2],(k+1)*self.batch_size))),
+                                  levels=self.levels, xyscale=self.xyscale, tscale=self.tscale, xscale=self.xscale,
+                                  yscale=self.yscale, seed=self.seed)
             if self.demean in ["both", "time"]:
                 arr -= np.mean(arr, axis=(0,1), keepdims=True)
             mins.append(np.min(arr))
@@ -340,9 +231,10 @@ class Perl:
             os.link(self.tmpdir.joinpath("_grey.tif"), self.tmpdir.joinpath(f"_frame{i:05}.tif"))
         if fn[-4:] != ".mp4":
             fn += ".mp4"
-        call(["ffmpeg", "-r", str(self.fps), "-i", str(self.tmpdir.joinpath("_frame%5d.tif")), "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
-        call([f"rm "+str(self.tmpdir.joinpath("_frame*.tif"))], shell=True)
-        call([f"rm "+str(self.tmpdir.joinpath("_grey.tif"))], shell=True)
+        call([get_ffmpeg_exe(), "-r", str(self.fps), "-i", str(self.tmpdir.joinpath("_frame%5d.tif")), "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
+        for p in self.tmpdir.glob("_frame*.tif"):
+            p.unlink()
+        self.tmpdir.joinpath("_grey.tif").unlink()
     def save_video(self, fn, loop=1, filters=[], bitrate=20):
         """Save the filtered stimulus.
 
@@ -365,7 +257,7 @@ class Perl:
             raise IOError("Output video file already exists!")
         i = 0
         k = 0
-        filtind = self.filter_index_function(filters)
+        filtind = filter_frames_index_function(filters, nframes=self.nframes)
         while os.path.isfile(self.cache_filename(k)):
             data = np.load(self.cache_filename(k)).astype("float32")
             # Renormalise using precomputed mins/maxes
@@ -379,7 +271,7 @@ class Perl:
                 else:
                     n = f[0]
                     args = f[1:]
-                data = self.filter(data, n, *args)
+                data = filter_frames(data, n, *args)
             data = self.discretize(data)
             assert data.dtype == 'uint8'
             for j in range(0, data.shape[2]):
@@ -393,5 +285,6 @@ class Perl:
                 os.link(self.tmpdir.joinpath(f"_frame{i:05}.tif"), self.tmpdir.joinpath(f"_frame{(i+j*n_frames):05}.tif"))
         if fn[-4:] != ".mp4":
             fn += ".mp4"
-        call(["ffmpeg", "-r", str(self.fps), "-i", str(self.tmpdir.joinpath("_frame%5d.tif")), "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
-        call([f"rm "+str(self.tmpdir.joinpath("_frame*.tif"))], shell=True)
+        call([get_ffmpeg_exe(), "-r", str(self.fps), "-i", str(self.tmpdir.joinpath("_frame%5d.tif")), "-c:v", "mpeg2video", "-an", "-b:v", f"{bitrate}M", fn])
+        for p in self.tmpdir.glob("_frame*.tif"):
+            p.unlink()
