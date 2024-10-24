@@ -9,7 +9,7 @@ import imageio
 from imageio_ffmpeg import get_ffmpeg_exe
 
 from . import _perlin
-from .util import generate_frames, filter_frames, filter_frames_index_function, XYSCALEBASE
+from .util import generate_frames, filter_frames, filter_frames_index_function, XYSCALEBASE, discretize
 
 
 class PerlinStimulus:
@@ -109,23 +109,6 @@ class PerlinStimulus:
         if batch == "stats":
             return str(self.cachedir.joinpath(f"perlcache_{h}_stats.npz"))
         return str(self.cachedir.joinpath(f"perlcache_{h}_{batch}.npy"))
-    @classmethod
-    def discretize(cls, im):
-        """Convert movie to an unsigned 8-bit integer
-
-        Parameters
-        ----------
-        im : 3D float ndarray, values ∈ [0,1]
-            Noise movie
-
-        Returns
-        -------
-        3D int ndarray, values ∈ [0,255]
-            Noise movie
-        """
-        im *= 255
-        ret = im.astype(np.uint8)
-        return ret
     def generate_frame(self, t=0, filters=[]):
         """Generate and return a single image of noise.
 
@@ -144,19 +127,12 @@ class PerlinStimulus:
         2-dimensional ndarray
             An image of the noise
         """
-        arr = generate_frames(self.size[0], self.size[1], self.size[2], timepoints=[t], levels=self.levels,
+        arr = generate_frames(self.size[0], self.size[1], self.size[2], timepoints=[t] if not hasattr(t, "__iter__") else t, levels=self.levels,
                               xyscale=self.xyscale, tscale=self.tscale, xscale=self.xscale,
                               yscale=self.yscale, seed=self.seed)
         if self.demean in ["both", "time"]:
             arr -= np.mean(arr, axis=(0,1), keepdims=True)
-        for f in filters:
-            if isinstance(f, str):
-                n = f
-                args = []
-            else:
-                n = f[0]
-                args = f[1:]
-            arr = filter_frames(arr, n, *args)
+        arr = apply_filters(arr, filters)
         return arr.squeeze()
 
     def generate_batch(self):
@@ -272,7 +248,7 @@ class PerlinStimulus:
                     n = f[0]
                     args = f[1:]
                 data = filter_frames(data, n, *args)
-            data = self.discretize(data)
+            data = discretize(data)
             assert data.dtype == 'uint8'
             for j in range(0, data.shape[2]):
                 imageio.imsave(self.tmpdir.joinpath(f"_frame{filtind(i):05}.tif"), data[:,:,j], format="pillow", compression="tiff_adobe_deflate")

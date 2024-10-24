@@ -1,5 +1,5 @@
 import numpy as np
-
+import scipy.ndimage
 from . import _perlin
 
 XYSCALEBASE = 100
@@ -73,6 +73,18 @@ def filter_frames(im, filt, *args):
         return filt(im)
     raise ValueError("Invalid filter specified")
 
+def apply_filters(arr, filters):
+    for f in filters:
+        if isinstance(f, str):
+            n = f
+            args = []
+        else:
+            n = f[0]
+            args = f[1:]
+        arr = filter_frames(arr, n, *args)
+    return arr
+
+
 def filter_frames_index_function(filters, nframes):
     """Reordering frames in the video based on the filter.
 
@@ -101,6 +113,23 @@ def filter_frames_index_function(filters, nframes):
     if "reverse" in filters:
         return lambda x : nframes - x - 1
     return lambda x : x
+
+def discretize(im):
+    """Convert movie to an unsigned 8-bit integer
+
+    Parameters
+    ----------
+    im : 3D float ndarray, values ∈ [0,1]
+        Noise movie
+
+    Returns
+    -------
+    3D int ndarray, values ∈ [0,255]
+        Noise movie
+    """
+    im *= 255
+    ret = im.astype(np.uint8)
+    return ret
 
 def generate_frames(xsize, ysize, tsize, timepoints, levels=10, xyscale=.5, tscale=1, xscale=1.0, yscale=1.0, seed=0):
     """Preprocess arguments before passing to the C implementation of Perlin noise.
