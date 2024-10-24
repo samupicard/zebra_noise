@@ -16,6 +16,35 @@ I have only tested this on Linux.
 
 # Usage
 
+## Basic usage
+
+If you would like to generate a zebra noise of size 640x480 for 2 minutes, you can run
+    
+    import zebranoise
+    zebranoise.zebra_noise("output.mp4", xsize=640, ysize=480, tdur=60*2, fps=30, seed=0)
+
+Other parameters control the spatial and temporal frequencies.  For instance,
+
+    zebranoise.zebra_noise("output2.mp4", xsize=640, ysize=480, tdur=60*2, levels=10, xyscale=.2, tscale=50, fps=30, xscale=1.0, yscale=1.0, seed=0)
+
+The meaning of these parameters is:
+
+- **xsize** and **ysize**: the x and y dimensions of the output video.  (Sometimes
+  these will be rounded up to multiples of 16.)
+- **tdur**: the duration in seconds
+- **levels**: The number of octaves to use when approximating the 1/f spectrum.
+  The default of 10 should be more than enough.
+- **xyscale**: The spatial scale of the Perlin noise, from 0 to 1.  Low values
+  will make the video smoother and high values choppier.
+- **tscale**: The speed of the video
+- **xscale** and **yscale**: Resize the x and y dimensions of the output.
+- **fps**: Frames per second
+- **seed**: Random seed
+
+## Advanced usage
+
+This package can be used to generate new stimuli based on Perlin noise.
+
 To generate a Perlin noise-based video, follow two steps with the package.  First, generate the Perlin noise.  This is the most time consuming step, and will also use a lot of temporary disk space.  This is accomplished with:
 
 ```python
