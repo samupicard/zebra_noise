@@ -8,6 +8,8 @@ import numpy as np
 
 if sys.platform != 'win32':
     compile_args = ['-funroll-loops']
+else:
+    compile_args = []
 
 with open("README.md", "r") as f:
     long_desc = f.read()
