@@ -14,9 +14,12 @@ else:
 with open("README.md", "r") as f:
     long_desc = f.read()
 
+with open("zebranoise/_version.py", "r") as f:
+    exec(f.read())
+
 setup(
     name='zebranoise',
-    version='0.1',
+    version=__version__,
     description='Zebra noise stimuli for Python',
     long_description = long_desc,
     long_description_content_type='text/markdown',
