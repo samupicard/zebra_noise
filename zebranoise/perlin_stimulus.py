@@ -62,13 +62,14 @@ class PerlinStimulus:
         """
         assert demean in ["both", "time", "space", "none"]
         tsize = int(tdur*fps)
+        tscale = tscale
         self.ratio = xsize/ysize*XYSCALEBASE
         assert self.ratio == int(self.ratio), f"Ratio between x and y times {XYSCALEBASE} must be an integer"
         self.ratio = int(self.ratio)
         textra = (tscale - (tsize % tscale)) % tscale
         if textra > 0:
             warnings.warn(f"Adding {textra} extra timepoints to make tscale a multiple of tdur")
-        tsize += textra
+        tsize += round(textra)
         self.size = (xsize, ysize, tsize)
         assert self.size[0] >= self.size[1], "Wrong orientation"
         self.fps = fps
@@ -129,7 +130,7 @@ class PerlinStimulus:
         """
         arr = generate_frames(self.size[0], self.size[1], self.size[2], timepoints=[t] if not hasattr(t, "__iter__") else t, levels=self.levels,
                               xyscale=self.xyscale, tscale=self.tscale, xscale=self.xscale,
-                              yscale=self.yscale, seed=self.seed)
+                              yscale=self.yscale, fps=self.fps, seed=self.seed)
         if self.demean in ["both", "time"]:
             arr -= np.mean(arr, axis=(0,1), keepdims=True)
         arr = apply_filters(arr, filters)
@@ -165,7 +166,7 @@ class PerlinStimulus:
             arr = generate_frames(self.size[0], self.size[1], tsize=self.size[2],
                                   timepoints=list(range(k*self.batch_size,min(self.size[2],(k+1)*self.batch_size))),
                                   levels=self.levels, xyscale=self.xyscale, tscale=self.tscale, xscale=self.xscale,
-                                  yscale=self.yscale, seed=self.seed)
+                                  yscale=self.yscale, fps=self.fps, seed=self.seed)
             if self.demean in ["both", "time"]:
                 arr -= np.mean(arr, axis=(0,1), keepdims=True)
             mins.append(np.min(arr))

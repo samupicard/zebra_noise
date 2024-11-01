@@ -27,8 +27,12 @@ setup(
         'Development Status :: 4 - Beta',
         'Programming Language :: C',
         'Programming Language :: Python :: 3',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: MIT License',
+        'Topic :: Multimedia :: Graphics',
+        'Topic :: Scientific/Engineering',
     ],
-    install_requires = ['numpy', 'imageio', 'imageio-ffmpeg'],
+    install_requires = ['numpy', 'imageio', 'imageio-ffmpeg', 'tqdm'],
     packages=['zebranoise'],
     ext_modules=[
         Extension('zebranoise._perlin', ['zebranoise/_perlin.c'],

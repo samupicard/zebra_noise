@@ -131,13 +131,13 @@ def discretize(im):
     ret = im.astype(np.uint8)
     return ret
 
-def generate_frames(xsize, ysize, tsize, timepoints, levels=10, xyscale=.5, tscale=1, xscale=1.0, yscale=1.0, seed=0):
+def generate_frames(xsize, ysize, tsize, timepoints, levels=10, xyscale=.5, tscale=1, xscale=1.0, yscale=1.0, fps=30, seed=0):
     """Preprocess arguments before passing to the C implementation of Perlin noise.
     """
     # Use the temporal scale and number of timepoints to compute how many
     # units to make the stimulus across the temporal dimension
-    tunits = int(tsize/tscale)
-    ts_all = np.arange(0, tsize, dtype="float32")/tscale
+    tunits = int(tsize/(tscale*(fps/30)))
+    ts_all = np.arange(0, tsize, dtype="float32")/(tscale*(fps/30))
     ratio = int(xsize/ysize*XYSCALEBASE)
     arr = _perlin.make_perlin(np.arange(0, xsize, dtype="float32")/ysize/xscale, # Yes, divide by y size
                               np.arange(0, ysize, dtype="float32")/ysize/yscale,

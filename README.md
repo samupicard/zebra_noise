@@ -1,6 +1,6 @@
 This library will efficiently generate visual stimulus videos using Perlin noise.  The core algorithm is in optimized C.
 
-Much of the C code is based on [Casey Duncan's "noise" package for Python](https://github.com/caseman/noise), under the MIT license.
+[![Example zebra noise](http://img.youtube.com/vi/-SyjgbNCP4Q/0.jpg)](http://www.youtube.com/watch?v=-SyjgbNCP4Q "Example zebra noise")
 
 # Installation
 
@@ -48,7 +48,7 @@ This package can be used to generate new stimuli based on Perlin noise.
 To generate a Perlin noise-based video, follow two steps with the package.  First, generate the Perlin noise.  This is the most time consuming step, and will also use a lot of temporary disk space.  This is accomplished with:
 
 ```python
-noise = perlstim.Perl(xsize=400, ysize=100, tdur=60*2, xyscale=.5, tscale=.01, seed=0)
+noise = zebranoise.PerlinStimulus(xsize=400, ysize=100, tdur=60*2, xyscale=.2, tscale=50, seed=0)
 ```
 
 See the function documentation for perlstim.Perl for more information about modifying the properties of the noise.
@@ -61,7 +61,7 @@ noise.save_video("noise.mp4", filters=["reverse", ("comb", .05)])
 
 The above example applies the "reverse" filter (with no arguments) and the "comb" filter with the argument 0.1.
 
-# Filters
+## Filters
 
 The following filters are currently defined:
 
@@ -76,12 +76,15 @@ The following filters are currently defined:
 - "photodiode_anywhere" (3 arguments): Draw a sync square at the coordinates given by the first two arguments (x and y), and of size given by argument 3.
 - [any function] (0 arguments): If you pass a function, the function will be applied to each chunk of the video.  Chunks consist of the entire x and y but a subset of z, guaranteed to be an even number.
 
-# Example
+## Example
 
 To get started, try the following:
 
 ```python
-import perlstim
-stim = perlstim.Perl(xsize=480, ysize=128, tdur=60*5, xyscale=.2, tscale=50)
+import zebranoise
+stim = zebranoise.PerlinStimulus(xsize=480, ysize=128, tdur=60*5, xyscale=.2, tscale=50)
 stim.save_video("perlin_stimulus.mp4", loop=1, filters=[("comb", .08), ("photodiode", 30)])
 ```
+# Other information
+
+Much of the C code is based on [Casey Duncan's "noise" package for Python](https://github.com/caseman/noise), under the MIT license.
