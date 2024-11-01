@@ -1,8 +1,18 @@
-This library will efficiently generate visual stimulus videos using Perlin noise.  The core algorithm is in optimized C.
+This library will efficiently generate visual stimulus videos using Perlin noise, including zebra noise.  The core algorithm is in optimized C.
+
+[Example zebra noise](http://www.youtube.com/watch?v=-SyjgbNCP4Q)
 
 [![Example zebra noise](http://img.youtube.com/vi/-SyjgbNCP4Q/0.jpg)](http://www.youtube.com/watch?v=-SyjgbNCP4Q "Example zebra noise")
 
 # Installation
+
+## From pypi
+
+Run:
+
+    pip install zebranoise
+
+## From source
 
 Make sure you have a C compiler installed.  The easiest way to do this is by installing Cython.
 
