@@ -234,6 +234,7 @@ class PerlinStimulus:
             raise IOError("Output video file already exists!")
         i = 0
         k = 0
+        shift = 0
         filtind = filter_frames_index_function(filters, nframes=self.nframes)
         while os.path.isfile(self.cache_filename(k)):
             data = np.load(self.cache_filename(k)).astype("float32")
@@ -244,17 +245,23 @@ class PerlinStimulus:
             for f in filters:
                 if isinstance(f, str):
                     n = f
-                    args = []
+                    if n=='photodiode_ibl':
+                        np.random.seed(1234)
+                        seq = np.tile(np.random.random(3600), (8,1)).T.flatten()
+                        args = (seq[shift:(shift+data.shape[2])] > .5).astype(np.int8)
+                    else:
+                        args = []
                 else:
                     n = f[0]
                     args = f[1:]
-                data = filter_frames(data, n, *args)
+                data = filter_frames(data, n,*args)
             data = discretize(data)
             assert data.dtype == 'uint8'
             for j in range(0, data.shape[2]):
                 imageio.imsave(self.tmpdir.joinpath(f"_frame{filtind(i):05}.tif"), data[:,:,j], format="pillow", compression="tiff_adobe_deflate")
                 i += 1
             k += 1
+            shift += data.shape[2]
             del data
         n_frames = i
         for j in range(1, loop):

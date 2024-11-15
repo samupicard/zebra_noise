@@ -72,13 +72,7 @@ def filter_frames(im, filt, *args):
     if filt == "photodiode_ibl":
         im = im.copy()
         s = 75
-        x = 1995
-        y = 1500
-        nc = 8
-        ns = 3600
-        np.random.seed(1234)
-        seq = np.tile(np.random.random(ns), (nc, 1)).T.flatten()
-        im[-s:,-s:,:] = (seq[:im.shape[2]] > .5).astype(np.int8)
+        im[-s:,-s:,:] = args
         return im
     if callable(filt):
         return filt(im)
