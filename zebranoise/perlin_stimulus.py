@@ -9,7 +9,7 @@ import imageio
 from imageio_ffmpeg import get_ffmpeg_exe
 
 from . import _perlin
-from .util import generate_frames, filter_frames, filter_frames_index_function, XYSCALEBASE, discretize
+from .util import generate_frames, filter_frames, filter_frames_index_function, XYSCALEBASE, discretize, apply_filters
 
 
 class PerlinStimulus:
@@ -245,7 +245,7 @@ class PerlinStimulus:
             for f in filters:
                 if isinstance(f, str):
                     n = f
-                    if n=='photodiode_ibl':
+                    if n=="photodiode_ibl":
                         np.random.seed(1234)
                         seq = np.tile(np.random.random(3600), (8,1)).T.flatten()
                         args = (seq[shift:(shift+data.shape[2])] > .5).astype(np.int8)
@@ -253,7 +253,11 @@ class PerlinStimulus:
                         args = []
                 else:
                     n = f[0]
-                    args = f[1:]
+                    if n=="photodiode_ibl":
+                        print(data.shape[2])
+                        args = f[1][shift:(shift+data.shape[2])].astype(np.int8)
+                    else:
+                        args = f[1:]
                 data = filter_frames(data, n,*args)
             data = discretize(data)
             assert data.dtype == 'uint8'
