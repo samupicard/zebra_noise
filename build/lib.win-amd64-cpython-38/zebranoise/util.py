@@ -78,7 +78,7 @@ def filter_frames(im, filt, *args):
         ns = 3600
         np.random.seed(1234)
         seq = np.tile(np.random.random(ns), (nc, 1)).T.flatten()
-        im[-s:,-s:,:] = (seq[:im.shape[2]] > .5).astype(np.int8)
+        im[(y-s):y,(x-s):x,:] = (seq[:im.shape[2]] > .5).astype(np.int8)
         return im
     if callable(filt):
         return filt(im)

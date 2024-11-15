@@ -1,0 +1,15 @@
+LICENSE.txt
+README.md
+pyproject.toml
+setup.py
+zebranoise/__init__.py
+zebranoise/_perlin.c
+zebranoise/_version.py
+zebranoise/easy.py
+zebranoise/perlin_stimulus.py
+zebranoise/util.py
+zebranoise.egg-info/PKG-INFO
+zebranoise.egg-info/SOURCES.txt
+zebranoise.egg-info/dependency_links.txt
+zebranoise.egg-info/requires.txt
+zebranoise.egg-info/top_level.txt
