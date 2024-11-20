@@ -254,7 +254,7 @@ class PerlinStimulus:
                 else:
                     n = f[0]
                     if n=="photodiode_ibl":
-                        print(data.shape[2])
+                        #print(data.shape[2])
                         args = f[1][shift:(shift+data.shape[2])].astype(np.int8)
                     else:
                         args = f[1:]
